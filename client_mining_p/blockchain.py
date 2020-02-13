@@ -1,18 +1,14 @@
-# Paste your version of blockchain.py from the basic_block_gp
-# folder here
 import hashlib
 import json
 from time import time
 from uuid import uuid4
 from flask import Flask, jsonify, request
-# hardcoded difficulty setting
-DIFFICULTY = 3
 class Blockchain(object):
     def __init__(self):
         self.chain = []
         self.current_transactions = []
         # Create the genesis block
-        self.new_block(previous_hash=1, proof=100)
+        self.new_block(previous_hash="1", proof=100)
     def new_block(self, proof, previous_hash=None):
         """
         Create a new Block in the Blockchain
@@ -53,66 +49,78 @@ class Blockchain(object):
         # We must make sure that the Dictionary is Ordered,
         # or we'll have inconsistent hashes
         # Create the block_string
-        block_string = json.dumps(block, sort_keys=True).encode()
-        # Hash this string using sha256
-        hash = hashlib.sha256(block_string).hexdigest()
+        #  stringifys json                  # keys in same order for hashes
+        string_object = json.dumps(block, sort_keys=True)
+        #  strip metadata from string
+        block_string = string_object.encode()
+       # TODO: Hash this string using sha256
+        raw_hash = hashlib.sha256(block_string)
+        #: Returns the encoded data in hexadecimal format
+        hex_hash = raw_hash.hexdigest()
         # By itself, the sha256 function returns the hash in a raw string
         # that will likely include escaped characters.
         # This can be hard to read, but .hexdigest() converts the
         # hash to a string of hexadecimal characters, which is
         # easier to work with and understand
         # Return the hashed block string in hexadecimal format
-        return hash
+        return hex_hash
     @property
     def last_block(self):
         return self.chain[-1]
-    def proof_of_work(self, block):
-        """
-        Simple Proof of Work Algorithm
-        Stringify the block and look for a proof.
-        Loop through possibilities, checking each one against `valid_proof`
-        in an effort to find a number that is a valid proof
-        :return: A valid proof for the provided block
-        """
-        block_string = json.dumps(self.last_block, sort_keys=True)
-        proof = 0
-        while self.valid_proof(block_string, proof) is False:
-            proof += 1
-        return proof
+          # def proof_of_work(self, block):
+    #     """
+    #     Simple Proof of Work Algorithm
+    #     Stringify the block and look for a proof.
+    #     Loop through possibilities, checking each one against `valid_proof`
+    #     in an effort to find a number that is a valid proof
+    #     :return: A valid proof for the provided block
+    #     """
+    #     block_string = json.dumps(block, sort_keys=True)
+    #     proof = 0
+    #     while self.valid_proof(block_string, proof) is False:
+    #         proof += 1
+    #     return proof
     @staticmethod
     def valid_proof(block_string, proof):
-        """
-        Validates the Proof:  Does hash(block_string, proof) contain 3
-        leading zeroes?  Return true if the proof is valid
-        :param block_string: <string> The stringified block to use to
-        check in combination with `proof`
-        :param proof: <int?> The value that when combined with the
-        stringified previous block results in a hash that has the
-        correct number of leading zeroes.
-        :return: True if the resulting hash is a valid proof, False otherwise
-        """
+    #     """
+    #     Validates the Proof:  Does hash(block_string, proof) contain 3
+    #     leading zeroes?  Return true if the proof is valid
+    #     :param block_string: <string> The stringified block to use to
+    #     check in combination with `proof`
+    #     :param proof: <int?> The value that when combined with the
+    #     stringified previous block results in a hash that has the
+    #     correct number of leading zeroes.
+    #     :return: True if the resulting hash is a valid proof, False otherwise
+    #     """
         guess = f'{block_string}{proof}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
-        # return True or False
-        return guess_hash[:DIFFICULTY] == '0' * DIFFICULTY
+        return guess_hash[:6] == "000000"
 # Instantiate our Node
 app = Flask(__name__)
 # Generate a globally unique address for this node
 node_identifier = str(uuid4()).replace('-', '')
 # Instantiate the Blockchain
 blockchain = Blockchain()
-@app.route('/mine', methods=['GET'])
+print(blockchain.chain)
+print(blockchain.hash(blockchain.last_block))
+@app.route('/mine', methods=['POST'])
 def mine():
     # Run the proof of work algorithm to get the next proof
-    previous_hash = blockchain.hash(blockchain.last_block)
-    proof = blockchain.proof_of_work(blockchain.last_block)
+    # proof = blockchain.proof_of_work(blockchain.last_block)
+    data = request.get_json()
     # Forge the new Block by adding it to the chain with the proof
-    new_block = blockchain.new_block(proof, previous_hash)
+    previous_hash = blockchain.hash(blockchain.last_block)
+    new_block= blockchain.new_block(data["proof"], previous_hash)
     response = {
-        #Send a JSON response with the new block
-        'block' : new_block
+        # TODO: Send a JSON response with the new block
+        "new_block": new_block
     }
-    return jsonify(response), 200
+# Check that 'proof', and 'id' are present
+#if data is proof and id return response 200 else return error 400 (bad request)
+    if (data["proof"] and data["id"]): 
+        return jsonify(response), 200
+    else:
+        return jsonify("Bad Request"), 400
 @app.route('/chain', methods=['GET'])
 def full_chain():
     response = {
@@ -124,8 +132,8 @@ def full_chain():
 @app.route('/last_block', methods=['GET'])
 def last_block():
     response = {
-        #Return the last block in the chain
-       'block' : blockchain.last_block
+        'last_block': blockchain.chain[len(blockchain.chain) - 1]
+        # 'message': 'test!'
     }
     return jsonify(response), 200
 # Run the program on port 5000
